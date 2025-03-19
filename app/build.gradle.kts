@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -52,5 +53,9 @@ dependencies {
     //lifecycle
     implementation(libs.androidx.lifecycle.viewmodel)
     implementation(libs.androidx.lifecycle.runtime)
+
+    //dagger
+    implementation(libs.dagger)
+    ksp(libs.dagger.compiler)
 
 }
