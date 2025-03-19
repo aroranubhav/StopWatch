@@ -1,44 +1,71 @@
 package com.almax.stopwatch.ui.stopwatch
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 
-class StopWatchViewModel : ViewModel() {
+class StopWatchViewModel(
+    private val repository: StopWatchRepository
+) : ViewModel() {
 
     private val _timer = MutableStateFlow(0L)
     val timer: StateFlow<Long>
         get() = _timer
 
-    private val _isRunning = MutableStateFlow(false)
-    val isRunning: StateFlow<Boolean> get() = _isRunning
+    private var isRunning: Boolean = false
 
-    private var startTime = 0L
+    private var isServiceBound: Boolean = false
 
-    fun updateTimer() {
-        if (!_isRunning.value) {
-            _isRunning.value = true
-            startTime = System.currentTimeMillis() - _timer.value
-            viewModelScope.launch(Dispatchers.Default) {
-                while (_isRunning.value) {
-                    _timer.update {
-                        System.currentTimeMillis() - startTime
-                    }
-                    delay(10L)
+    init {
+        repository.bindService()
+        viewModelScope.launch {
+            repository.isServiceBound.collect {
+                isServiceBound = it
+                if (!isServiceBound) {
+                    isRunning = false
+                    resetTimer()
                 }
             }
-        } else {
-            _isRunning.value = false
         }
     }
 
-    fun resetTimer() {
-        _timer.value = 0L
-        _isRunning.value = false
+    fun startTimer() {
+        isRunning = true
+        viewModelScope.launch {
+            while (isServiceBound && isRunning) {
+                repository.startTimer()
+                    .catch { e ->
+                        Log.e(TAG, "startTimer: ${e.message}")
+                        isRunning = false
+                    }
+                    .collect { elapsedTime ->
+                        _timer.value = elapsedTime
+                    }
+            }
+
+        }
     }
+
+    fun stopTimer() {
+        isRunning = false
+        repository.stopTimer()
+    }
+
+    fun resetTimer() {
+        isRunning = false
+        repository.resetTimer()
+    }
+
+    //TODO: does not get cleared!! check
+    /*override fun onCleared() {
+        super.onCleared()
+        *//*if (!isServiceBound || !is)*//*
+        repository.unbindService()
+    }*/
 }
+
+const val TAG = "StopWatchViewModelTAG"
